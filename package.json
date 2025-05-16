@@ -15,6 +15,7 @@
     "express": "^5.1.0",
     "mysql2": "^3.14.1",
     "permissionless": "^0.2.46",
+    "tslib": "^2.8.1",
     "viem": "^2.29.2"
   }
 }
