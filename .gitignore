@@ -1,0 +1,43 @@
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore log files and temporary files
+*.log
+*.tmp
+*.swp
+
+# Ignore dependency folders
+node_modules/
+vendor/
+dist/
+build/
+
+# Ignore compiled files
+*.class
+*.o
+*.so
+*.exe
+
+# Ignore environment/config files
+.env
+.env.local
+config.json
+secrets.yml
+
+# Ignore IDE/editor-specific files
+.vscode/
+.idea/
+*.iml
+
+# Ignore Python files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore macOS system files
+.DS_Store
