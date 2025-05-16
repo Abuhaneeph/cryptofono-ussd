@@ -3,6 +3,8 @@ const db = require('../config/database');
 const { hashPin, generateMerchantCode } = require('../utils/crypto');
 const walletService = require('./wallet');
 
+// Network configuration
+const NETWORK = process.env.NETWORK || 'testnet'; // Default to testnet if not specified
 
 // Check if a user exists by phone number
 async function checkUserExists(phoneNumber) {
@@ -23,7 +25,15 @@ async function checkUserExists(phoneNumber) {
 async function getUserByPhone(phoneNumber) {
   try {
     const [users] = await db.query(
-      'SELECT id, phone_number, account_type, wallet_address, business_name, merchant_code FROM users WHERE phone_number = ?',
+      `SELECT 
+        id, 
+        phone_number, 
+        account_type, 
+        ${NETWORK}_wallet_address AS wallet_address, 
+        business_name, 
+        merchant_code 
+      FROM users 
+      WHERE phone_number = ?`,
       [phoneNumber]
     );
     
@@ -73,17 +83,17 @@ async function registerRegularUser(phoneNumber, pin) {
       [phoneNumber, 'regular', hashedPin]
     );
     
-    // Generate wallet
+    // Generate wallet for the current network
     try {
       await walletService.getOrCreateSmartWallet(phoneNumber);
     } catch (walletError) {
-      console.error('Error creating wallet during registration:', walletError);
+      console.error(`Error creating ${NETWORK} wallet during registration:`, walletError);
       // Continue despite wallet creation error, wallet will be created later
     }
     
     return {
       success: true,
-      message: 'Registration successful! Your USDC wallet is ready.'
+      message: `Registration successful! Your ${NETWORK} USDC wallet is ready.`
     };
   } catch (error) {
     console.error('Error registering regular user:', error);
@@ -119,11 +129,11 @@ async function registerMerchant(phoneNumber, pin, businessName) {
       [phoneNumber, 'merchant', hashedPin, businessName, merchantCode]
     );
     
-    // Generate wallet
+    // Generate wallet for the current network
     try {
       await walletService.getOrCreateSmartWallet(phoneNumber);
     } catch (walletError) {
-      console.error('Error creating wallet during merchant registration:', walletError);
+      console.error(`Error creating ${NETWORK} wallet during merchant registration:`, walletError);
       // Continue despite wallet creation error, wallet will be created later
     }
     
@@ -144,11 +154,16 @@ async function registerMerchant(phoneNumber, pin, businessName) {
 // Get merchant information by merchant code
 async function getMerchantByCode(merchantCode) {
   try {
-   const [merchants] = await db.query(
-  'SELECT id, phone_number, business_name, wallet_address FROM users WHERE merchant_code = ? AND account_type = ?',
-  [merchantCode, 'merchant']
-);
-
+    const [merchants] = await db.query(
+      `SELECT 
+        id, 
+        phone_number, 
+        business_name, 
+        ${NETWORK}_wallet_address AS wallet_address 
+      FROM users 
+      WHERE merchant_code = ? AND account_type = ?`,
+      [merchantCode, 'merchant']
+    );
     
     return merchants.length > 0 ? merchants[0] : null;
   } catch (error) {
@@ -159,19 +174,21 @@ async function getMerchantByCode(merchantCode) {
 
 async function getWalletAddress(phoneNumber) {
   try {
+    const walletAddressColumn = `${NETWORK}_wallet_address`;
+    
     const [users] = await db.query(
-      'SELECT wallet_address FROM users WHERE phone_number = ?',
+      `SELECT ${walletAddressColumn} AS wallet_address FROM users WHERE phone_number = ?`,
       [phoneNumber]
     );
     
     if (users.length === 0 || !users[0].wallet_address) {
-      // If no wallet address is stored, try to create one
+      // If no wallet address is stored for the current network, try to create one
       const walletData = await walletService.getOrCreateSmartWallet(phoneNumber);
       
       // Update user with new wallet address if it was just created
       if (walletData && walletData.account && walletData.account.address) {
         await db.query(
-          'UPDATE users SET wallet_address = ? WHERE phone_number = ?',
+          `UPDATE users SET ${walletAddressColumn} = ? WHERE phone_number = ?`,
           [walletData.account.address, phoneNumber]
         );
         
@@ -183,7 +200,7 @@ async function getWalletAddress(phoneNumber) {
     
     return users[0].wallet_address;
   } catch (error) {
-    console.error('Error getting wallet address:', error);
+    console.error(`Error getting ${NETWORK} wallet address:`, error);
     return null;
   }
 }
@@ -196,5 +213,4 @@ module.exports = {
   registerMerchant,
   getMerchantByCode,
   getWalletAddress
-
 };

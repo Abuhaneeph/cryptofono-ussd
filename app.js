@@ -9,6 +9,9 @@ const db = require('./config/database');
 // Import USSD handler
 const { handleUssdRequest } = require('./handlers/ussd');
 
+// Log network configuration on startup
+console.log(`Starting application in ${process.env.NETWORK || 'testnet'} mode`);
+
 // Initialize Express app
 const app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -16,7 +19,7 @@ app.use(bodyParser.json());
 
 // Home route
 app.get('/', (req, res) => {
-  res.send('PayLite USSD Service is running');
+  res.send('Cryptofono USSD Service is running');
 });
 
 // USSD endpoint
@@ -56,8 +59,6 @@ app.post('/ussd', async (req, res) => {
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
-  console.log(`PayLite USSD service running on port ${PORT}`);
+  console.log(`Cryptofono USSD service running on port ${PORT}`);
   
-
-
 });

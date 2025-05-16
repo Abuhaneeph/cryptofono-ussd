@@ -4,7 +4,7 @@ const {
   privateKeyToAccount
 } = require('viem/accounts');
 const { createPublicClient, http } = require('viem');
-const { baseSepolia } = require('viem/chains');
+const { base, baseSepolia } = require('viem/chains');
 const { createPimlicoClient } = require('permissionless/clients/pimlico');
 const { entryPoint07Address } = require('viem/account-abstraction');
 const { createSmartAccountClient } = require('permissionless');
@@ -14,32 +14,61 @@ const { parseAbi, getAddress, maxUint256 } = require('viem');
 const db = require('../config/database');
 const { encrypt, decrypt } = require('../utils/crypto');
 
-// USDC token address
-const USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+// Network configuration
+const NETWORK = process.env.NETWORK || 'testnet'; // Default to testnet if not specified
+
+// Chain and endpoint configuration based on network
+const getChainConfig = () => {
+  if (NETWORK === 'mainnet') {
+    return {
+      chain: base,
+      rpcUrl: `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
+      pimlicoUrl: `https://api.pimlico.io/v2/${base.id}/rpc?apikey=${process.env.PIMLICO_API_KEY}`,
+      usdcAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // Mainnet USDC address on Base
+    };
+  } else {
+    return {
+      chain: baseSepolia,
+      rpcUrl: `https://base-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
+      pimlicoUrl: `https://api.pimlico.io/v2/${baseSepolia.id}/rpc?apikey=${process.env.PIMLICO_API_KEY}`,
+      usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" // Testnet USDC address
+    };
+  }
+};
+
+// Get current network configuration
+const config = getChainConfig();
+
+// USDC token address based on the current network
+const USDC_ADDRESS = config.usdcAddress;
 
 // Create or get a smart wallet for a user
 async function getOrCreateSmartWallet(phoneNumber) {
   try {
-    // Check if user exists and has a wallet
+    const privateKeyColumn = `${NETWORK}_private_key_encrypted`;
+    const walletAddressColumn = `${NETWORK}_wallet_address`;
+    
+    // Check if user exists and has a wallet for the current network
     const [users] = await db.query(
-      'SELECT id, wallet_address, private_key_encrypted FROM users WHERE phone_number = ?',
+      `SELECT id, ${walletAddressColumn} as wallet_address, ${privateKeyColumn} as private_key_encrypted 
+       FROM users WHERE phone_number = ?`,
       [phoneNumber]
     );
     
     if (users.length > 0 && users[0].wallet_address && users[0].private_key_encrypted) {
-      // User exists and has a wallet
+      // User exists and has a wallet for this network
       const privateKey = decrypt(users[0].private_key_encrypted);
       const walletData = await setupSmartWallet(privateKey);
       return walletData;
     } else if (users.length > 0) {
-      // User exists but doesn't have a wallet
+      // User exists but doesn't have a wallet for this network
       const privateKey = generatePrivateKey();
       const encryptedKey = encrypt(privateKey);
       const walletData = await setupSmartWallet(privateKey);
       
-      // Update user with wallet information
+      // Update user with wallet information for the current network
       await db.query(
-        'UPDATE users SET wallet_address = ?, private_key_encrypted = ? WHERE phone_number = ?',
+        `UPDATE users SET ${walletAddressColumn} = ?, ${privateKeyColumn} = ? WHERE phone_number = ?`,
         [walletData.account.address, encryptedKey, phoneNumber]
       );
       
@@ -48,26 +77,27 @@ async function getOrCreateSmartWallet(phoneNumber) {
     
     throw new Error('User not found');
   } catch (error) {
-    console.error('Error getting or creating smart wallet:', error);
+    console.error(`Error getting or creating ${NETWORK} smart wallet:`, error);
     throw error;
   }
 }
 
 // Set up a smart wallet with the provided private key
 async function setupSmartWallet(privateKey) {
+  // Get network configuration
+  const networkConfig = getChainConfig();
+  
   // Create public client
   const publicClient = createPublicClient({
-    chain: baseSepolia,
-    transport: http(`https://base-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`),
+    chain: networkConfig.chain,
+    transport: http(networkConfig.rpcUrl),
   });
 
   // Create Pimlico client
   const apiKey = process.env.PIMLICO_API_KEY;
-  const pimlicoUrl = `https://api.pimlico.io/v2/${baseSepolia.id}/rpc?apikey=${apiKey}`;
-  
   const pimlicoClient = createPimlicoClient({
-    chain: baseSepolia,
-    transport: http(pimlicoUrl),
+    chain: networkConfig.chain,
+    transport: http(networkConfig.pimlicoUrl),
     entryPoint: {
       address: entryPoint07Address,
       version: "0.7",
@@ -84,8 +114,8 @@ async function setupSmartWallet(privateKey) {
   // Create smart account client
   const smartAccountClient = createSmartAccountClient({
     account,
-    chain: baseSepolia,
-    bundlerTransport: http(pimlicoUrl),
+    chain: networkConfig.chain,
+    bundlerTransport: http(networkConfig.pimlicoUrl),
     paymaster: pimlicoClient,
     userOperation: {
       estimateFeesPerGas: async () => {
@@ -94,7 +124,7 @@ async function setupSmartWallet(privateKey) {
     },
   });
 
-  console.log(`Smart wallet setup complete for address: ${account.address}`);
+  console.log(`Smart wallet setup complete for address: ${account.address} on ${NETWORK}`);
   
   return {
     account,
@@ -116,7 +146,7 @@ async function checkUSDCBalance(walletAddress, publicClient) {
     
     return Number(balance) / 1_000_000; // Convert to human-readable format (6 decimals for USDC)
   } catch (error) {
-    console.error('Error checking USDC balance:', error);
+    console.error(`Error checking USDC balance on ${NETWORK}:`, error);
     return 0;
   }
 }
@@ -130,7 +160,7 @@ async function checkNativeBalance(walletAddress, publicClient) {
     
     return Number(balance) / 1e18; // Convert to ETH units
   } catch (error) {
-    console.error('Error checking native balance:', error);
+    console.error(`Error checking native balance on ${NETWORK}:`, error);
     return 0;
   }
 }
@@ -138,9 +168,9 @@ async function checkNativeBalance(walletAddress, publicClient) {
 // Send USDC to address
 async function sendUSDC(senderPhoneNumber, recipientAddress, amount) {
   try {
-    console.log(`Sending ${amount} USDC from ${senderPhoneNumber} to ${recipientAddress}`);
+    console.log(`Sending ${amount} USDC from ${senderPhoneNumber} to ${recipientAddress} on ${NETWORK}`);
     
-    // Get the sender's wallet
+    // Get the sender's wallet for the current network
     const walletData = await getOrCreateSmartWallet(senderPhoneNumber);
     
     // Check USDC balance
@@ -154,17 +184,19 @@ async function sendUSDC(senderPhoneNumber, recipientAddress, amount) {
     if (usdcBalance < parseFloat(amount) + 1) {
       return {
         success: false,
-        message: `Insufficient USDC balance. You have ${usdcBalance.toFixed(6)} USDC. Need at least ${parseFloat(amount) + 1} USDC (including fees).`
+        message: `Insufficient USDC balance on ${NETWORK}. You have ${usdcBalance.toFixed(6)} USDC. Need at least ${parseFloat(amount) + 1} USDC (including fees).`
       };
     }
     
+    // Get current network configuration
+    const networkConfig = getChainConfig();
+    
     // Setup Pimlico client for USDC as gas token
     const apiKey = process.env.PIMLICO_API_KEY;
-    const pimlicoUrl = `https://api.pimlico.io/v2/${baseSepolia.id}/rpc?apikey=${apiKey}`;
     
     const pimlicoClient = createPimlicoClient({
-      chain: baseSepolia,
-      transport: http(pimlicoUrl),
+      chain: networkConfig.chain,
+      transport: http(networkConfig.pimlicoUrl),
       entryPoint: {
         address: entryPoint07Address,
         version: "0.7",
@@ -196,8 +228,8 @@ async function sendUSDC(senderPhoneNumber, recipientAddress, amount) {
     // Create smart account client with USDC as gas token
     const smartAccountClient = createSmartAccountClient({
       account,
-      chain: baseSepolia,
-      bundlerTransport: http(pimlicoUrl),
+      chain: networkConfig.chain,
+      bundlerTransport: http(networkConfig.pimlicoUrl),
       paymaster: pimlicoClient,
       userOperation: {
         estimateFeesPerGas: async () => {
@@ -229,7 +261,12 @@ async function sendUSDC(senderPhoneNumber, recipientAddress, amount) {
       },
     });
     
-    console.log(`Transaction hash: https://sepolia.basescan.org/tx/${hash}`);
+    // Get block explorer URL based on network
+    const explorerUrl = NETWORK === 'mainnet' 
+      ? `https://basescan.org/tx/${hash}`
+      : `https://sepolia.basescan.org/tx/${hash}`;
+    
+    console.log(`Transaction hash: ${explorerUrl}`);
     
     // Get sender ID to record transaction
     const [senderResult] = await db.query(
@@ -240,23 +277,23 @@ async function sendUSDC(senderPhoneNumber, recipientAddress, amount) {
     if (senderResult.length > 0) {
       const senderId = senderResult[0].id;
       
-      // Record transaction
+      // Record transaction with network information
       await db.query(
-        'INSERT INTO transactions (sender_id, recipient_address, amount, transaction_type, tx_hash, status) VALUES (?, ?, ?, ?, ?, ?)',
-        [senderId, recipientAddress, parseFloat(amount), 'send', hash, 'completed']
+        'INSERT INTO transactions (sender_id, recipient_address, amount, transaction_type, tx_hash, status, network) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [senderId, recipientAddress, parseFloat(amount), 'send', hash, 'completed', NETWORK]
       );
     }
     
     return {
       success: true,
-      message: `Successfully sent ${amount} USDC to ${recipientAddress}`,
+      message: `Successfully sent ${amount} USDC to ${recipientAddress} on ${NETWORK}`,
       txHash: hash
     };
   } catch (error) {
-    console.error('Error sending USDC:', error);
+    console.error(`Error sending USDC on ${NETWORK}:`, error);
     return {
       success: false,
-      message: `Failed to send USDC: ${error.message}`
+      message: `Failed to send USDC on ${NETWORK}: ${error.message}`
     };
   }
 }
@@ -264,18 +301,49 @@ async function sendUSDC(senderPhoneNumber, recipientAddress, amount) {
 // Pay a merchant using merchant code
 async function payMerchant(customerPhoneNumber, merchantCode, amount) {
   try {
-    // Validate merchant code
-  const [merchantResult] = await db.query(
-  'SELECT id, phone_number, wallet_address FROM users WHERE merchant_code = ? AND account_type = ?',
-  [merchantCode, 'merchant']
-);
-
+    // Validate merchant code and get their wallet for the current network
+    const walletAddressColumn = `${NETWORK}_wallet_address`;
+    
+    const [merchantResult] = await db.query(
+      `SELECT id, phone_number, ${walletAddressColumn} as wallet_address 
+       FROM users WHERE merchant_code = ? AND account_type = ?`,
+      [merchantCode, 'merchant']
+    );
     
     if (merchantResult.length === 0) {
       return {
         success: false,
         message: 'Invalid merchant code. Please check and try again.'
       };
+    }
+    
+    // Check if merchant has a wallet for the current network
+    if (!merchantResult[0].wallet_address) {
+      try {
+        // Create merchant wallet for this network if it doesn't exist
+        await getOrCreateSmartWallet(merchantResult[0].phone_number);
+        
+        // Fetch the newly created wallet address
+        const [updatedMerchant] = await db.query(
+          `SELECT ${walletAddressColumn} as wallet_address 
+           FROM users WHERE merchant_code = ? AND account_type = ?`,
+          [merchantCode, 'merchant']
+        );
+        
+        if (!updatedMerchant[0].wallet_address) {
+          return {
+            success: false,
+            message: `Merchant does not have a wallet set up for ${NETWORK}. Please try again later.`
+          };
+        }
+        
+        merchantResult[0].wallet_address = updatedMerchant[0].wallet_address;
+      } catch (walletError) {
+        return {
+          success: false,
+          message: `Merchant does not have a wallet set up for ${NETWORK}. Please try again later.`
+        };
+      }
     }
     
     const merchantId = merchantResult[0].id;
@@ -294,20 +362,20 @@ async function payMerchant(customerPhoneNumber, merchantCode, amount) {
       if (customerResult.length > 0) {
         const customerId = customerResult[0].id;
         
-        // Record merchant payment
+        // Record merchant payment with network information
         await db.query(
-          'INSERT INTO merchant_payments (merchant_id, customer_id, amount, tx_hash, status) VALUES (?, ?, ?, ?, ?)',
-          [merchantId, customerId, parseFloat(amount), result.txHash, 'completed']
+          'INSERT INTO merchant_payments (merchant_id, customer_id, amount, tx_hash, status, network) VALUES (?, ?, ?, ?, ?, ?)',
+          [merchantId, customerId, parseFloat(amount), result.txHash, 'completed', NETWORK]
         );
       }
     }
     
     return result;
   } catch (error) {
-    console.error('Error paying merchant:', error);
+    console.error(`Error paying merchant on ${NETWORK}:`, error);
     return {
       success: false,
-      message: `Failed to pay merchant: ${error.message}`
+      message: `Failed to pay merchant on ${NETWORK}: ${error.message}`
     };
   }
 }
@@ -327,7 +395,7 @@ async function getRecentTransactions(phoneNumber, limit = 5) {
     
     const userId = userResult[0].id;
     
-    // Get transactions where user is sender or recipient
+    // Get transactions where user is sender or recipient for the current network
     const [transactions] = await db.query(
       `SELECT 
         t.*,
@@ -336,15 +404,15 @@ async function getRecentTransactions(phoneNumber, limit = 5) {
           WHEN t.recipient_id = ? THEN 'received'
         END as direction
       FROM transactions t
-      WHERE t.sender_id = ? OR t.recipient_id = ?
+      WHERE (t.sender_id = ? OR t.recipient_id = ?) AND t.network = ?
       ORDER BY t.created_at DESC
       LIMIT ?`,
-      [userId, userId, userId, userId, limit]
+      [userId, userId, userId, userId, NETWORK, limit]
     );
     
     return transactions;
   } catch (error) {
-    console.error('Error getting recent transactions:', error);
+    console.error(`Error getting recent transactions for ${NETWORK}:`, error);
     return [];
   }
 }
@@ -353,11 +421,10 @@ async function getRecentTransactions(phoneNumber, limit = 5) {
 async function getMerchantPayments(merchantPhoneNumber, limit = 5) {
   try {
     // Get merchant ID
-  const [merchantResult] = await db.query(
-  'SELECT id FROM users WHERE phone_number = ? AND account_type = ?',
-  [merchantPhoneNumber, 'merchant']
-);
-
+    const [merchantResult] = await db.query(
+      'SELECT id FROM users WHERE phone_number = ? AND account_type = ?',
+      [merchantPhoneNumber, 'merchant']
+    );
     
     if (merchantResult.length === 0) {
       return [];
@@ -365,20 +432,20 @@ async function getMerchantPayments(merchantPhoneNumber, limit = 5) {
     
     const merchantId = merchantResult[0].id;
     
-    // Get merchant payments
+    // Get merchant payments for the current network
     const [payments] = await db.query(
       `SELECT mp.*, u.phone_number as customer_phone
       FROM merchant_payments mp
       JOIN users u ON mp.customer_id = u.id
-      WHERE mp.merchant_id = ?
+      WHERE mp.merchant_id = ? AND mp.network = ?
       ORDER BY mp.created_at DESC
       LIMIT ?`,
-      [merchantId, limit]
+      [merchantId, NETWORK, limit]
     );
     
     return payments;
   } catch (error) {
-    console.error('Error getting merchant payments:', error);
+    console.error(`Error getting merchant payments for ${NETWORK}:`, error);
     return [];
   }
 }
@@ -398,19 +465,19 @@ async function getMerchantWithdrawals(merchantPhoneNumber, limit = 5) {
     
     const merchantId = merchantResult[0].id;
     
-    // Get merchant withdrawals (transactions where merchant is sender)
+    // Get merchant withdrawals for the current network
     const [withdrawals] = await db.query(
       `SELECT t.* 
       FROM transactions t
-      WHERE t.sender_id = ? AND t.transaction_type = 'withdraw'
+      WHERE t.sender_id = ? AND t.transaction_type = 'withdraw' AND t.network = ?
       ORDER BY t.created_at DESC
       LIMIT ?`,
-      [merchantId, limit]
+      [merchantId, NETWORK, limit]
     );
     
     return withdrawals;
   } catch (error) {
-    console.error('Error getting merchant withdrawals:', error);
+    console.error(`Error getting merchant withdrawals for ${NETWORK}:`, error);
     return [];
   }
 }
