@@ -1,193 +1,130 @@
-# Cryptofono USSD Service
+# CryptoFono
 
-A mobile-accessible cryptocurrency platform that works over USSD, allowing users to access digital financial services through basic feature phones without requiring internet connectivity or smartphones.
+<div align="center">
+ 
+  <p><strong>Cryptocurrency for Everyone on Base - No Smartphone Required</strong></p>
+</div>
 
-## 🌍 Problem Statement
+## 📱 Overview
 
-In many regions across Africa, Latin America, and parts of Asia:
-- Internet connectivity is unreliable or expensive
-- Smartphone adoption is still growing
-- Traditional financial infrastructure is limited
-- Many remain unbanked or underbanked
-- Cryptocurrency adoption faces accessibility barriers
+CryptoFono enables feature phone users to access cryptocurrency services through USSD, making digital assets accessible to the unbanked and those without smartphones or internet access. Send, receive, and manage USDC stablecoins on Base blockchain with just a basic phone.
 
-Cryptofono solves these problems by enabling cryptocurrency transactions over the USSD protocol - the same technology used for mobile airtime top-ups and basic mobile banking, making digital financial services accessible to anyone with even the most basic feature phone.
+## 🔗 API Endpoints
+
+### Base URLs
+* **Testnet Environment**: `https://cryptofono-ussd-testnet.onrender.com/ussd`
+* **Mainnet Environment**: `https://cryptofono-ussd.onrender.com/ussd`
+
+### Documentation
+* **Postman API Documentation**: [CryptoFono USSD API](https://www.postman.com/security-architect-92214193/cryptofono/collection/ue8u9wt/cryptofono-ussd-api?action=share&creator=45016156)
+
+## 🎥 Demo
+Watch our demonstration video: [CryptoFono Demo](https://youtu.be/_7N1VA6spXA)
 
 ## ✨ Features
 
-- **Universal Access**: Works on any mobile phone, no internet or smartphone required
-- **User Registration**: Simple onboarding for both regular users and merchants
-- **Smart Wallet Creation**: Automatic blockchain wallet creation using account abstraction
-- **USDC Transactions**: Send, receive, and store USDC stablecoins
-- **Multiple Transfer Options**: Send to other Cryptofono users or external Ethereum addresses
-- **Merchant Payments**: Pay businesses directly using their unique merchant codes
-- **Transaction History**: View payment history and recent transactions
-- **Simple Interface**: Access all cryptocurrency features through an intuitive USSD menu
+### User Account Types
+- **Regular User Accounts**: For individuals to send and receive cryptocurrency
+- **Merchant Accounts**: For businesses to accept payments and manage transactions
 
-## 🏗️ Project Structure
+### User Authentication
+- PIN-based security (4-digit PIN)
+- Session management
+- Secure registration flow
 
-```
-cryptofono-ussd/
-├── app.js                  # Main application entry point
-├── config/
-│   └── database.js         # Database configuration
-├── handlers/
-│   └── ussd.js             # USSD request handler
-├── services/
-│   ├── user.js             # User management operations
-│   └── wallet.js           # Blockchain wallet operations
-├── utils/
-│   └── crypto.js           # Encryption and security utilities
-└── README.md               # Project documentation
-```
+### Regular User Features
+1. **Account Management**
+   - New user registration
+   - PIN creation and authentication
+   - Balance checking
 
-## 🚀 Installation
+2. **Transactions**
+   - Send USDC to other CryptoFono users
+   - Send USDC to external Ethereum wallets
+   - Pay merchants using merchant codes
+   - View transaction history
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/cryptofono-ussd.git
-cd cryptofono-ussd
-```
+3. **Wallet Management**
+   - View wallet address
+   - Check USDC balance
 
-2. Install dependencies:
-```bash
-npm install
-```
+### Merchant Features
+1. **Business Management**
+   - Merchant registration with business name
+   - Unique merchant code generation for receiving payments
 
-3. Create a `.env` file with the following variables:
-```
-# Database Configuration
-DB_HOST=localhost
-DB_USER=your_database_user
-DB_PASSWORD=your_database_password
-DB_NAME=cryptofono
+2. **Financial Operations**
+   - Check balance
+   - View received payments with customer details
+   - Withdraw funds to CryptoFono users or external wallets
+   - View withdrawal history
 
-# Blockchain Configuration
-RPC_URL=your_ethereum_rpc_url
-USDC_CONTRACT_ADDRESS=0x...
-ENTRYPOINT_ADDRESS=0x...
-FACTORY_ADDRESS=0x...
+3. **Merchant Tools**
+   - Share merchant code with customers
+   - View wallet address for direct deposits
 
-# Security
-PIN_ENCRYPTION_KEY=your_encryption_key
+## 🖥️ Technical Implementation
 
-# Pimlico API (for gas sponsorship)
-PIMLICO_API_KEY=your_pimlico_api_key
-```
+### USSD Menu Structure
+CryptoFono uses a multi-level USSD menu system:
+- **Level 1**: Authentication (PIN entry) or registration selection
+- **Level 2**: Main menu options
+- **Level 3+**: Feature-specific submenus and transaction flows
 
-4. Set up the database schema:
-```bash
-mysql -u your_database_user -p your_database_name < schema.sql
-```
+### Technology Stack
+- **Backend**: Node.js
+- **Database**: MySQL (Aiven managed database)
+- **Blockchain Integration**: 
+  - **Network**: Base Mainnet (production) / Base Sepolia (testnet)
+  - Pimlico for ERC-4337 account abstraction
+  - Alchemy for blockchain API access
+  - USDC stablecoin for transactions
 
-5. Start the server:
-```bash
-npm start
-```
+### Security Features
+- PIN-based authentication
+- Phone number verification
+- Transaction confirmations
+- Masked phone numbers for privacy
 
-## 📝 USSD Flow
+### Transaction Flow
+1. Select recipient (CryptoFono user, merchant, or external wallet)
+2. Enter amount
+3. Review and confirm
+4. Receive confirmation or error message
 
-### New User Registration
-1. Dial service code (e.g., *123#)
-2. Select account type:
-   - 1: Regular User
-   - 2: Merchant
-3. Create a 4-digit PIN
-4. Confirm PIN
-5. Merchants only: Enter business name
-6. Account is created with an Ethereum wallet
+## 🔧 Installation and Setup
 
-### Login & Authentication
-1. Dial service code (e.g., *123#)
-2. Enter 4-digit PIN
-3. Access main menu based on account type
+### Prerequisites
+- Node.js
+- MySQL database (we use Aiven Cloud for production)
+- Pimlico API key for smart wallet functionality
+- Alchemy API key for blockchain interactions
 
-### Regular User Menu
-1. Check Balance
-2. Send USDC
-   - To Cryptofono user (via phone number)
-   - To external wallet address
-3. Pay a Merchant (via merchant code)
-4. View Transactions
-5. My Wallet Address
-6. Exit
+### Configuration
+1. Clone the repository
+2. Install dependencies with `npm install`
+3. Configure environment variables in a `.env` file:
+   ```
+   # Application configuration
+   PORT=3000
+   DB_PORT=your_db_port
+   DB_HOST=your_database_host
+   DB_USER=your_database_user
+   DB_PASS=your_database_password
+   DB_NAME=your_database_name
+   PIMLICO_API_KEY=your_pimlico_api_key
+   KEY_SECRET=your_key_secret
+   ALCHEMY_API_KEY=your_alchemy_api_key
 
-### Merchant Menu
-1. Check Balance
-2. View Payments
-3. Withdraw
-   - To Cryptofono user
-   - To external wallet address
-4. Share Merchant Code
-5. My Wallet Address
-6. View Withdrawals
-7. Exit
-
-## 🧪 Testing with Postman
-
-You can test the USSD service using Postman by simulating USSD requests:
-
-1. Open Postman and create a new POST request
-2. Use the URL: `http://your-server-address/api/ussd`
-3. Set the request body to `x-www-form-urlencoded`
-4. Add the following parameters:
-   - `sessionId`: A random string (e.g., "SESS123456789")
-   - `serviceCode`: "*123#" (or your configured service code)
-   - `phoneNumber`: A valid phone number (e.g., "+254712345678")
-   - `text`: Leave empty for initial request, then use the response history for subsequent requests
-
-Example Initial Request:
-```
-POST /api/ussd
-Content-Type: application/x-www-form-urlencoded
-
-sessionId=SESS123456789&serviceCode=*123#&phoneNumber=+254712345678&text=
-```
-
-For subsequent requests, update the `text` parameter based on your navigation through the menu. For example, to select "1" from the main menu, set `text=1`. To navigate deeper, use `*` as separators, e.g., `text=1*1234` for selecting option 1 and then entering PIN 1234.
-
-## 🛠️ Technologies Used
-
-- **Node.js & Express**: Backend server framework
-- **MySQL**: Database for user data and transaction records
-- **Viem**: Ethereum interaction library
-- **Permissionless**: Account abstraction library for smart contract wallets
-- **Pimlico**: Gas sponsorship for gasless transactions
-- **Africa's Talking/Twilio**: USSD service provider integration
-
-## 💡 How It Works
-
-1. **Wallet Creation**: Each user gets an ERC-4337 compliant smart contract wallet upon registration
-2. **Transaction Flow**:
-   - User initiates transaction via USSD
-   - Backend creates and signs the transaction
-   - Gas fees are sponsored through Pimlico's paymaster
-   - Transaction is bundled and sent to the blockchain
-   - Result is communicated back to the user via USSD
-3. **Gasless Experience**: Users don't need ETH for gas fees
-4. **Security**: All transactions require PIN authentication
-
-## 🔗 Blockchain Integration
-
-Cryptofono uses account abstraction (ERC-4337) to provide a seamless user experience:
-
-- **Smart Contract Wallets**: Each user gets a smart wallet that can handle token transactions
-- **Sponsored Transactions**: Users don't pay gas fees
-- **Simplified UX**: No need to understand blockchain concepts to use the service
-- **USDC Support**: All transactions use USDC stablecoin
-
-## 🔜 Roadmap
-
-- Multi-token support for other stablecoins
-- Integration with local payment methods
-- P2P marketplace for goods and services
-- Savings and group contribution features
-- Merchant APIs for advanced integrations
-
-## 📄 License
-
-MIT
+   # Network configuration
+   # Options: 'mainnet' (Base Mainnet) or 'testnet' (Base Sepolia)
+   NETWORK=testnet
+   ```
 
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
